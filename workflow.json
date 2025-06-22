@@ -1,0 +1,400 @@
+{
+  "name": "LogAnalyze - Automação de Análise de Logs",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "bugsnag-webhook",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Bugsnag",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "bugsnag-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extrair dados do payload do Bugsnag\nconst payload = $input.first().json;\n\n// Mapear dados para variáveis estruturadas\nconst mappedData = {\n  title: payload.error?.message || 'Erro não identificado',\n  description: `**Erro:** ${payload.error?.message || 'N/A'}\\n\\n**Contexto:** ${payload.error?.context || 'N/A'}\\n\\n**Stack Trace:** ${payload.error?.stacktrace || 'N/A'}\\n\\n**URL:** ${payload.error?.url || 'N/A'}\\n\\n**Severidade:** ${payload.severity || 'error'}\\n\\n**Timestamp:** ${payload.receivedAt || new Date().toISOString()}`,\n  severity: payload.severity || 'error',\n  errorUrl: payload.error?.url || '',\n  projectId: payload.project?.id || '',\n  errorId: payload.error?.id || '',\n  timestamp: payload.receivedAt || new Date().toISOString(),\n  status: 'recebimento'\n};\n\nreturn [{ json: mappedData }];"
+      },
+      "id": "process-data",
+      "name": "Processar Dados Bugsnag",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "resource": "task",
+        "workspaceId": "={{ $env.CLICKUP_WORKSPACE_ID }}",
+        "spaceId": "={{ $env.CLICKUP_SPACE_ID }}",
+        "listId": "={{ $env.CLICKUP_LIST_ID }}",
+        "name": "={{ $json.title }}",
+        "description": "={{ $json.description }}",
+        "priority": "={{ $json.severity === 'error' ? 1 : $json.severity === 'warning' ? 2 : 3 }}",
+        "assignees": "={{ [$env.AGENT_RECEBIMENTO_ID] }}",
+        "status": "Recebimento",
+        "additionalFields": {
+          "tags": ["bugsnag", "automacao"],
+          "custom_fields": {
+            "severity": "={{ $json.severity }}",
+            "error_url": "={{ $json.errorUrl }}",
+            "project_id": "={{ $json.projectId }}",
+            "error_id": "={{ $json.errorId }}",
+            "timestamp": "={{ $json.timestamp }}"
+          }
+        }
+      },
+      "id": "create-task",
+      "name": "Criar Tarefa ClickUp",
+      "type": "n8n-nodes-base.clickUp",
+      "typeVersion": 1,
+      "position": [680, 300],
+      "credentials": {
+        "clickUpApi": {
+          "id": "clickup-credentials",
+          "name": "ClickUp API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "severity-check",
+              "leftValue": "={{ $json.severity }}",
+              "rightValue": "error",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "severity-check",
+      "name": "Verificar Severidade",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "resource": "task",
+        "taskId": "={{ $('Criar Tarefa ClickUp').item.json.id }}",
+        "status": "Análise",
+        "assignees": "={{ [$env.AGENT_ANALISE_ID] }}",
+        "additionalFields": {
+          "description": "={{ $json.description + '\\n\\n---\\n**Movido para Análise**\\nAgente responsável: ' + $env.AGENT_ANALISE_ID + '\\nTimestamp: ' + new Date().toISOString() }}"
+        }
+      },
+      "id": "update-to-analysis",
+      "name": "Atualizar para Análise",
+      "type": "n8n-nodes-base.clickUp",
+      "typeVersion": 1,
+      "position": [1120, 200],
+      "credentials": {
+        "clickUpApi": {
+          "id": "clickup-credentials",
+          "name": "ClickUp API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "resource": "task",
+        "taskId": "={{ $('Criar Tarefa ClickUp').item.json.id }}",
+        "status": "Rascunho",
+        "assignees": "={{ [$env.AGENT_RASCUNHO_ID] }}",
+        "additionalFields": {
+          "description": "={{ $json.description + '\\n\\n---\\n**Movido para Rascunho**\\nAgente responsável: ' + $env.AGENT_RASCUNHO_ID + '\\nTimestamp: ' + new Date().toISOString() }}"
+        }
+      },
+      "id": "update-to-draft",
+      "name": "Atualizar para Rascunho",
+      "type": "n8n-nodes-base.clickUp",
+      "typeVersion": 1,
+      "position": [1120, 400],
+      "credentials": {
+        "clickUpApi": {
+          "id": "clickup-credentials",
+          "name": "ClickUp API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SLACK_WEBHOOK_URL }}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "🚨 **Nova Issue de Log Criada**\\n\\n**Título:** {{ $json.title }}\\n**Severidade:** {{ $json.severity }}\\n**Status:** {{ $json.status }}\\n**Link:** https://app.clickup.com/t/{{ $('Criar Tarefa ClickUp').item.json.id }}\\n\\nAgente responsável: <@{{ $env.AGENT_RECEBIMENTO_ID }}>"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "notify-slack",
+      "name": "Notificar Slack",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [900, 500]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "resource": "task",
+        "taskId": "={{ $('Criar Tarefa ClickUp').item.json.id }}",
+        "status": "Revisão",
+        "assignees": "={{ [$env.AGENT_REVISAO_ID] }}",
+        "additionalFields": {
+          "description": "={{ $json.description + '\\n\\n---\\n**Movido para Revisão**\\nAgente responsável: ' + $env.AGENT_REVISAO_ID + '\\nTimestamp: ' + new Date().toISOString() }}"
+        }
+      },
+      "id": "update-to-review",
+      "name": "Atualizar para Revisão",
+      "type": "n8n-nodes-base.clickUp",
+      "typeVersion": 1,
+      "position": [1340, 200],
+      "credentials": {
+        "clickUpApi": {
+          "id": "clickup-credentials",
+          "name": "ClickUp API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "resource": "task",
+        "taskId": "={{ $('Criar Tarefa ClickUp').item.json.id }}",
+        "status": "Refinamento",
+        "assignees": "={{ [$env.AGENT_REFINAMENTO_ID] }}",
+        "additionalFields": {
+          "description": "={{ $json.description + '\\n\\n---\\n**Movido para Refinamento**\\nAgente responsável: ' + $env.AGENT_REFINAMENTO_ID + '\\nTimestamp: ' + new Date().toISOString() }}"
+        }
+      },
+      "id": "update-to-refinement",
+      "name": "Atualizar para Refinamento",
+      "type": "n8n-nodes-base.clickUp",
+      "typeVersion": 1,
+      "position": [1560, 200],
+      "credentials": {
+        "clickUpApi": {
+          "id": "clickup-credentials",
+          "name": "ClickUp API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "resource": "task",
+        "taskId": "={{ $('Criar Tarefa ClickUp').item.json.id }}",
+        "status": "Criação",
+        "assignees": "={{ [$env.AGENT_CRIACAO_ID] }}",
+        "additionalFields": {
+          "description": "={{ $json.description + '\\n\\n---\\n**Movido para Criação**\\nAgente responsável: ' + $env.AGENT_CRIACAO_ID + '\\nTimestamp: ' + new Date().toISOString() }}"
+        }
+      },
+      "id": "update-to-creation",
+      "name": "Atualizar para Criação",
+      "type": "n8n-nodes-base.clickUp",
+      "typeVersion": 1,
+      "position": [1780, 200],
+      "credentials": {
+        "clickUpApi": {
+          "id": "clickup-credentials",
+          "name": "ClickUp API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "resource": "task",
+        "taskId": "={{ $('Criar Tarefa ClickUp').item.json.id }}",
+        "status": "Concluído",
+        "assignees": "={{ [$env.AGENT_NOTIFICACAO_ID] }}",
+        "additionalFields": {
+          "description": "={{ $json.description + '\\n\\n---\\n**Issue Concluída**\\nAgente responsável: ' + $env.AGENT_NOTIFICACAO_ID + '\\nTimestamp: ' + new Date().toISOString() }}"
+        }
+      },
+      "id": "update-to-completed",
+      "name": "Marcar como Concluído",
+      "type": "n8n-nodes-base.clickUp",
+      "typeVersion": 1,
+      "position": [2000, 200],
+      "credentials": {
+        "clickUpApi": {
+          "id": "clickup-credentials",
+          "name": "ClickUp API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SLACK_WEBHOOK_URL }}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "✅ **Issue de Log Concluída**\\n\\n**Título:** {{ $json.title }}\\n**Link:** https://app.clickup.com/t/{{ $('Criar Tarefa ClickUp').item.json.id }}\\n\\nStatus: Concluído\\nAgente responsável: <@{{ $env.AGENT_NOTIFICACAO_ID }}>"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "notify-completion",
+      "name": "Notificar Conclusão",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2220, 200]
+    }
+  ],
+  "connections": {
+    "Webhook Bugsnag": {
+      "main": [
+        [
+          {
+            "node": "Processar Dados Bugsnag",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processar Dados Bugsnag": {
+      "main": [
+        [
+          {
+            "node": "Criar Tarefa ClickUp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Criar Tarefa ClickUp": {
+      "main": [
+        [
+          {
+            "node": "Verificar Severidade",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notificar Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar Severidade": {
+      "main": [
+        [
+          {
+            "node": "Atualizar para Análise",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Atualizar para Rascunho",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atualizar para Análise": {
+      "main": [
+        [
+          {
+            "node": "Atualizar para Revisão",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atualizar para Revisão": {
+      "main": [
+        [
+          {
+            "node": "Atualizar para Refinamento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atualizar para Refinamento": {
+      "main": [
+        [
+          {
+            "node": "Atualizar para Criação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atualizar para Criação": {
+      "main": [
+        [
+          {
+            "node": "Marcar como Concluído",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar como Concluído": {
+      "main": [
+        [
+          {
+            "node": "Notificar Conclusão",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z",
+      "id": "loganalyze",
+      "name": "LogAnalyze"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "versionId": "1"
+} 
