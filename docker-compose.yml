@@ -16,9 +16,9 @@ services:
       - N8N_PROTOCOL=http
       - WEBHOOK_URL=http://localhost:5678/
       - GENERIC_TIMEZONE=America/Sao_Paulo
+      - N8N_DIAGNOSTICS_ENABLED=false
     volumes:
       - n8n_data:/home/node/.n8n
-      - ./n8n-config:/home/node/.n8n/config
     networks:
       - n8n_network
 

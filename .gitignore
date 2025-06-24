@@ -1,0 +1,31 @@
+.env
+
+# Arquivos de teste, scripts auxiliares e workflows alternativos
+# (adicionados automaticamente pelo assistente)
+test-webhook-bugsnag.ps1
+test-workflow.ps1
+test-ai-agents.ps1
+test-telegram-bot.sh
+teste-simples.ps1
+verificar-n8n.ps1
+verificar-updates.ps1
+verificar-updates.sh
+obter-agentes.ps1
+obter-channel-id.ps1
+comando-rapido.ps1
+comandos-individuais.ps1
+setup.ps1
+setup.sh
+test-webhook.sh
+comandos-copia-cola.txt
+comandos-rapidos.md
+comandos-windows.md
+diagnostico-telegram.md
+CORRECOES-WORKFLOW.md
+CONFIGURACAO-AI-AGENTS.md
+obter-api-keys.md
+workflow-corrigido.json
+workflow-with-ai-agents.json
+loganalyze_workflow_n8n.json
+corrigir-workflow.ps1
+verificar-n8n.ps1

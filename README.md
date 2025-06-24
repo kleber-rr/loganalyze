@@ -1,6 +1,6 @@
 # LogAnalyze n8n - Automação de Análise de Logs
 
-Sistema completo de automação para análise de logs, integrando Bugsnag, n8n e ClickUp com fluxo de trabalho em múltiplas etapas e atribuição dinâmica de agentes.
+Sistema completo de automação para análise de logs, integrando Bugsnag, n8n e ClickUp com fluxo de trabalho em múltiplas etapas e atribuição dinâmica de agentes. Notificações via Telegram para máxima simplicidade e eficiência.
 
 ## 🚀 Início Rápido
 
@@ -9,6 +9,7 @@ Sistema completo de automação para análise de logs, integrando Bugsnag, n8n e
 - Conta ativa no Bugsnag
 - Conta ativa no ClickUp
 - Token de API do ClickUp
+- Bot do Telegram (opcional, para notificações)
 
 ### Instalação
 
@@ -25,10 +26,11 @@ chmod +x setup.sh
 
 ### Configuração
 1. Configure as variáveis no arquivo `.env`
-2. Acesse o n8n: http://localhost:5678
-3. Configure as credenciais do ClickUp
-4. Importe o workflow: `workflow.json`
-5. Configure o webhook no Bugsnag
+2. Configure o bot do Telegram (opcional)
+3. Acesse o n8n: http://localhost:5678
+4. Configure as credenciais do ClickUp e Telegram
+5. Importe o workflow: `workflow.json`
+6. Configure o webhook no Bugsnag
 
 ## 📁 Estrutura do Projeto
 
@@ -41,6 +43,7 @@ loganalyze_n8n/
 ├── test-webhook.sh        # Script de teste do webhook
 ├── workflow.json          # Fluxo de trabalho n8n
 ├── IMPLEMENTACAO.md       # Guia detalhado de implementação
+├── PROJETO.md             # Documentação técnica completa
 └── readme.md              # Este arquivo
 ```
 
@@ -54,7 +57,7 @@ O sistema implementa um fluxo de 7 etapas:
 4. **Revisão** - Validação da solução
 5. **Refinamento** - Ajustes finais
 6. **Criação** - Implementação da solução
-7. **Notificação** - Conclusão e notificação
+7. **Notificação** - Conclusão e notificação via Telegram
 
 ## 🧪 Testes
 
@@ -69,6 +72,7 @@ docker-compose logs -f n8n
 ## 📚 Documentação
 
 - [Guia de Implementação](IMPLEMENTACAO.md) - Passo-a-passo detalhado
+- [Documentação Técnica](PROJETO.md) - Especificações completas
 - [Troubleshooting](IMPLEMENTACAO.md#troubleshooting) - Solução de problemas
 - [Monitoramento](IMPLEMENTACAO.md#monitoramento) - Como monitorar o sistema
 
@@ -83,7 +87,8 @@ docker-compose logs -f n8n
 | `CLICKUP_SPACE_ID` | ID do space | `789012` |
 | `CLICKUP_LIST_ID` | ID da lista | `345678` |
 | `AGENT_RECEBIMENTO_ID` | ID do agente de recebimento | `901234` |
-| `SLACK_WEBHOOK_URL` | URL do webhook do Slack | `https://hooks.slack.com/...` |
+| `TELEGRAM_BOT_TOKEN` | Token do bot do Telegram | `123456789:ABCdef...` |
+| `TELEGRAM_CHAT_ID` | ID do chat/grupo | `123456789` |
 
 ### Status no ClickUp
 
@@ -95,6 +100,22 @@ Configure os seguintes status na sua lista:
 - Refinamento
 - Criação
 - Concluído
+
+## 💬 Configuração do Telegram
+
+### Vantagens do Telegram
+- ✅ **Gratuito** sem limitações
+- ✅ **Fácil configuração** (apenas bot token + chat ID)
+- ✅ **Suporte nativo** no n8n
+- ✅ **Notificações push** no celular
+- ✅ **Grupos e canais** ilimitados
+
+### Setup Rápido
+1. Procure por @BotFather no Telegram
+2. Envie `/newbot` e siga as instruções
+3. Copie o token do bot
+4. Adicione o bot ao chat/grupo desejado
+5. Obtenha o chat ID via API
 
 ## 🚨 Cenários de Emergência
 
@@ -114,6 +135,13 @@ curl http://localhost:5678/webhook/bugsnag-webhook
 1. Verifique o token do ClickUp
 2. Teste a API: `curl -H "Authorization: YOUR_TOKEN" "https://api.clickup.com/api/v2/user"`
 3. Verifique permissões do token
+
+### Telegram Não Funciona
+```bash
+curl "https://api.telegram.org/bot<SEU_TOKEN>/sendMessage" \
+  -d "chat_id=<SEU_CHAT_ID>" \
+  -d "text=Teste"
+```
 
 ## 📊 Monitoramento
 

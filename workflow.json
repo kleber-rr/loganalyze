@@ -1,273 +1,456 @@
 {
-  "name": "LogAnalyze - Automação de Análise de Logs",
+  "name": "LogAnalyze AI Workflow - Corrigido",
   "nodes": [
     {
       "parameters": {
         "httpMethod": "POST",
         "path": "bugsnag-webhook",
+        "authentication": "headerAuth",
         "responseMode": "responseNode",
         "options": {}
       },
-      "id": "webhook-trigger",
+      "id": "db8a8d6f-8690-4052-ad5b-33e61084df3a",
       "name": "Webhook Bugsnag",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1,
-      "position": [240, 300],
-      "webhookId": "bugsnag-webhook"
+      "position": [
+        -440,
+        100
+      ],
+      "webhookId": "bugsnag-webhook",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "kk2DYcvXq4MNExt7",
+          "name": "Header Auth account 2"
+        }
+      }
     },
     {
       "parameters": {
-        "jsCode": "// Extrair dados do payload do Bugsnag\nconst payload = $input.first().json;\n\n// Mapear dados para variáveis estruturadas\nconst mappedData = {\n  title: payload.error?.message || 'Erro não identificado',\n  description: `**Erro:** ${payload.error?.message || 'N/A'}\\n\\n**Contexto:** ${payload.error?.context || 'N/A'}\\n\\n**Stack Trace:** ${payload.error?.stacktrace || 'N/A'}\\n\\n**URL:** ${payload.error?.url || 'N/A'}\\n\\n**Severidade:** ${payload.severity || 'error'}\\n\\n**Timestamp:** ${payload.receivedAt || new Date().toISOString()}`,\n  severity: payload.severity || 'error',\n  errorUrl: payload.error?.url || '',\n  projectId: payload.project?.id || '',\n  errorId: payload.error?.id || '',\n  timestamp: payload.receivedAt || new Date().toISOString(),\n  status: 'recebimento'\n};\n\nreturn [{ json: mappedData }];"
+        "jsCode": "// Extrair dados do payload do Bugsnag\nconst payload = $input.first().json;\n\n// Mapear dados para variáveis estruturadas\nconst mappedData = {\n  title: payload.error?.message || 'Erro não identificado',\n  description: `**Erro:** ${payload.error?.message || 'N/A'}\\n\\n**Contexto:** ${payload.error?.context || 'N/A'}\\n\\n**Stack Trace:** ${payload.error?.stacktrace || 'N/A'}\\n\\n**URL:** ${payload.error?.url || 'N/A'}\\n\\n**Severidade:** ${payload.severity || 'error'}\\n\\n**Timestamp:** ${payload.receivedAt || new Date().toISOString()}`,\n  severity: payload.severity || 'error',\n  errorUrl: payload.error?.url || '',\n  projectId: payload.project?.id || '',\n  errorId: payload.error?.id || '',\n  timestamp: payload.receivedAt || new Date().toISOString(),\n  status: 'recebimento',\n  rawError: payload.error?.message || 'N/A',\n  stackTrace: payload.error?.stacktrace || 'N/A',\n  context: payload.error?.context || 'N/A'\n};\n\nreturn [{ json: mappedData }];"
       },
-      "id": "process-data",
+      "id": "dfea145d-01e2-4ac7-9d39-9435524ca0bd",
       "name": "Processar Dados Bugsnag",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [460, 300]
+      "position": [
+        -220,
+        100
+      ]
     },
     {
       "parameters": {
-        "operation": "create",
-        "resource": "task",
-        "workspaceId": "={{ $env.CLICKUP_WORKSPACE_ID }}",
-        "spaceId": "={{ $env.CLICKUP_SPACE_ID }}",
-        "listId": "={{ $env.CLICKUP_LIST_ID }}",
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "key",
+              "value": "={{ $env.GEMINI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [\n    {\n      \"parts\": [\n        {\n          \"text\": \"Analise este erro e retorne um JSON com:\\n- severity_level (1-5, onde 5 é crítico)\\n- classification (tipo do erro)\\n- priority (baixa, média, alta, crítica)\\n\\nErro: {{ $json.rawError }}\\nContexto: {{ $json.context }}\"\n        }\n      ]\n    }\n  ],\n  \"generationConfig\": {\n    \"maxOutputTokens\": 200\n  }\n}",
+        "options": {}
+      },
+      "id": "c02db3aa-361d-4158-bb39-8bd54f2ba65a",
+      "name": "AI Agente Recebimento (Gemini)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Processar resposta do AI Agent de Recebimento\nconst aiResponse = $input.first().json;\nconst originalData = $('Processar Dados Bugsnag').item.json;\n\n// Extrair dados da resposta do Gemini\ntry {\n  const aiText = aiResponse.candidates[0].content.parts[0].text;\n  const aiData = JSON.parse(aiText);\n  \n  return [{\n    json: {\n      ...originalData,\n      aiSeverityLevel: aiData.severity_level,\n      aiClassification: aiData.classification,\n      aiPriority: aiData.priority,\n      status: 'analise'\n    }\n  }];\n} catch (error) {\n  // Fallback se o parsing falhar\n  return [{\n    json: {\n      ...originalData,\n      aiSeverityLevel: 3,\n      aiClassification: 'Erro não classificado pelo AI',\n      aiPriority: 'média',\n      status: 'analise'\n    }\n  }];\n}"
+      },
+      "id": "f22d9769-8e0a-4fc8-b6ab-bcb13b40f0be",
+      "name": "Processar AI Recebimento",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.DEEPSEEK_API_KEY }}"
+            },
+            {
+              "name": "model",
+              "value": "={{ $env.DEEPSEEK_MODEL }}"
+            },
+            {
+              "name": "messages",
+              "value": "=[{\"role\":\"user\",\"content\":\"Analise tecnicamente este erro e forneça:\\n1. Possíveis causas\\n2. Impacto no sistema\\n3. Sugestões de solução\\n4. Código de exemplo para correção\\n\\nErro: {{ $json.rawError }}\\nContexto: {{ $json.context }}\\nStack Trace: {{ $json.stackTrace }}\"}]"
+            },
+            {
+              "name": "max_tokens",
+              "value": "={{ $env.DEEPSEEK_MAX_TOKENS }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2f14176b-8f7c-4339-bd5b-923cfd3de620",
+      "name": "AI Agente Análise (DeepSeek)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "BLPk2hQFxqGUYf3d",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Processar resposta do AI Agent de Análise\nconst aiResponse = $input.first().json;\nconst previousData = $('Processar AI Recebimento').item.json;\n\nconst technicalAnalysis = aiResponse.choices[0].message.content;\n\nreturn [{\n  json: {\n    ...previousData,\n    technicalAnalysis: technicalAnalysis,\n    status: 'rascunho'\n  }\n}];"
+      },
+      "id": "d65fdcda-b4ef-4823-88e0-b4a779a39be9",
+      "name": "Processar AI Análise",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.GROQ_API_KEY }}"
+            },
+            {
+              "name": "model",
+              "value": "={{ $env.GROQ_MODEL }}"
+            },
+            {
+              "name": "messages",
+              "value": "=[{\"role\":\"user\",\"content\":\"Crie um rascunho de tarefa para este erro com:\\n1. Título claro e conciso\\n2. Descrição detalhada\\n3. Passos para reprodução\\n4. Critérios de aceitação\\n\\nErro: {{ $json.rawError }}\\nAnálise Técnica: {{ $json.technicalAnalysis }}\\nClassificação: {{ $json.aiClassification }}\"}]"
+            },
+            {
+              "name": "max_tokens",
+              "value": "={{ $env.GROQ_MAX_TOKENS }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f21720d6-d2fe-418e-a0b9-7750ea09fd68",
+      "name": "AI Agente Rascunho (Groq)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "BLPk2hQFxqGUYf3d",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Processar resposta do AI Agent de Rascunho\nconst aiResponse = $input.first().json;\nconst previousData = $('Processar AI Análise').item.json;\n\nconst draftContent = aiResponse.choices[0].message.content;\n\nreturn [{\n  json: {\n    ...previousData,\n    draftContent: draftContent,\n    status: 'revisao'\n  }\n}];"
+      },
+      "id": "d08185db-d3a6-4454-b204-b233b2bfe787",
+      "name": "Processar AI Rascunho",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "key",
+              "value": "={{ $env.GEMINI_API_KEY }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "contents",
+              "value": "=[{\"parts\":[{\"text\":\"Revise e melhore este rascunho de tarefa. Retorne apenas o texto melhorado:\\n\\n{{ $json.draftContent }}\"}]}]"
+            },
+            {
+              "name": "generationConfig",
+              "value": "={\"maxOutputTokens\": {{ $env.GEMINI_MAX_TOKENS }}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "34cabebc-e096-4711-ac8b-c006ff3c1452",
+      "name": "AI Agente Revisão (Gemini)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Processar resposta do AI Agent de Revisão\nconst aiResponse = $input.first().json;\nconst previousData = $('Processar AI Rascunho').item.json;\n\nconst reviewedContent = aiResponse.candidates[0].content.parts[0].text;\n\nreturn [{\n  json: {\n    ...previousData,\n    reviewedContent: reviewedContent,\n    status: 'refinamento'\n  }\n}];"
+      },
+      "id": "e2d425ba-0572-4664-9a1a-b351cba50ece",
+      "name": "Processar AI Revisão",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.DEEPSEEK_API_KEY }}"
+            },
+            {
+              "name": "model",
+              "value": "={{ $env.DEEPSEEK_MODEL }}"
+            },
+            {
+              "name": "messages",
+              "value": "=[{\"role\":\"user\",\"content\":\"Refine e finalize esta tarefa adicionando:\\n1. Labels/tags apropriados\\n2. Estimativa de tempo\\n3. Dependências\\n4. Critérios de teste\\n\\nConteúdo: {{ $json.reviewedContent }}\\nAnálise Técnica: {{ $json.technicalAnalysis }}\"}]"
+            },
+            {
+              "name": "max_tokens",
+              "value": "={{ $env.DEEPSEEK_MAX_TOKENS }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "045715b9-5b51-4308-8a93-36887146ba9e",
+      "name": "AI Agente Refinamento (DeepSeek)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "BLPk2hQFxqGUYf3d",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Processar resposta do AI Agent de Refinamento\nconst aiResponse = $input.first().json;\nconst previousData = $('Processar AI Revisão').item.json;\n\nconst refinedContent = aiResponse.choices[0].message.content;\n\nreturn [{\n  json: {\n    ...previousData,\n    refinedContent: refinedContent,\n    status: 'criacao'\n  }\n}];"
+      },
+      "id": "cd90c892-95f6-4c1c-bedc-2c6023b6b947",
+      "name": "Processar AI Refinamento",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "team": "={{ $env.CLICKUP_WORKSPACE_ID }}",
+        "space": "={{ $env.CLICKUP_SPACE_ID }}",
+        "folder": "90112549965",
+        "list": "={{ $env.CLICKUP_LIST_ID }}",
         "name": "={{ $json.title }}",
-        "description": "={{ $json.description }}",
-        "priority": "={{ $json.severity === 'error' ? 1 : $json.severity === 'warning' ? 2 : 3 }}",
-        "assignees": "={{ [$env.AGENT_RECEBIMENTO_ID] }}",
-        "status": "Recebimento",
         "additionalFields": {
-          "tags": ["bugsnag", "automacao"],
-          "custom_fields": {
-            "severity": "={{ $json.severity }}",
-            "error_url": "={{ $json.errorUrl }}",
-            "project_id": "={{ $json.projectId }}",
-            "error_id": "={{ $json.errorId }}",
-            "timestamp": "={{ $json.timestamp }}"
-          }
+          "description": "={{ $json.refinedContent }}",
+          "tags": [
+            "bugsnag",
+            "automacao",
+            "ai-generated"
+          ]
         }
       },
-      "id": "create-task",
+      "id": "fe164560-bccb-4022-ac05-5a30eccc7f7f",
       "name": "Criar Tarefa ClickUp",
       "type": "n8n-nodes-base.clickUp",
       "typeVersion": 1,
-      "position": [680, 300],
+      "position": [
+        2200,
+        0
+      ],
       "credentials": {
         "clickUpApi": {
-          "id": "clickup-credentials",
-          "name": "ClickUp API"
+          "id": "I0vpGigfqBY5jdjN",
+          "name": "ClickUp account"
         }
       }
     },
     {
       "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict"
-          },
-          "conditions": [
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
             {
-              "id": "severity-check",
-              "leftValue": "={{ $json.severity }}",
-              "rightValue": "error",
-              "operator": {
-                "type": "string",
-                "operation": "equals"
-              }
+              "name": "key",
+              "value": "={{ $env.GEMINI_API_KEY }}"
             }
-          ],
-          "combinator": "and"
+          ]
         },
-        "options": {}
-      },
-      "id": "severity-check",
-      "name": "Verificar Severidade",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 1,
-      "position": [900, 300]
-    },
-    {
-      "parameters": {
-        "operation": "update",
-        "resource": "task",
-        "taskId": "={{ $('Criar Tarefa ClickUp').item.json.id }}",
-        "status": "Análise",
-        "assignees": "={{ [$env.AGENT_ANALISE_ID] }}",
-        "additionalFields": {
-          "description": "={{ $json.description + '\\n\\n---\\n**Movido para Análise**\\nAgente responsável: ' + $env.AGENT_ANALISE_ID + '\\nTimestamp: ' + new Date().toISOString() }}"
-        }
-      },
-      "id": "update-to-analysis",
-      "name": "Atualizar para Análise",
-      "type": "n8n-nodes-base.clickUp",
-      "typeVersion": 1,
-      "position": [1120, 200],
-      "credentials": {
-        "clickUpApi": {
-          "id": "clickup-credentials",
-          "name": "ClickUp API"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "operation": "update",
-        "resource": "task",
-        "taskId": "={{ $('Criar Tarefa ClickUp').item.json.id }}",
-        "status": "Rascunho",
-        "assignees": "={{ [$env.AGENT_RASCUNHO_ID] }}",
-        "additionalFields": {
-          "description": "={{ $json.description + '\\n\\n---\\n**Movido para Rascunho**\\nAgente responsável: ' + $env.AGENT_RASCUNHO_ID + '\\nTimestamp: ' + new Date().toISOString() }}"
-        }
-      },
-      "id": "update-to-draft",
-      "name": "Atualizar para Rascunho",
-      "type": "n8n-nodes-base.clickUp",
-      "typeVersion": 1,
-      "position": [1120, 400],
-      "credentials": {
-        "clickUpApi": {
-          "id": "clickup-credentials",
-          "name": "ClickUp API"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "url": "={{ $env.SLACK_WEBHOOK_URL }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
             {
-              "name": "text",
-              "value": "🚨 **Nova Issue de Log Criada**\\n\\n**Título:** {{ $json.title }}\\n**Severidade:** {{ $json.severity }}\\n**Status:** {{ $json.status }}\\n**Link:** https://app.clickup.com/t/{{ $('Criar Tarefa ClickUp').item.json.id }}\\n\\nAgente responsável: <@{{ $env.AGENT_RECEBIMENTO_ID }}>"
+              "name": "contents",
+              "value": "=[{\"parts\":[{\"text\":\"Crie uma notificação concisa para Telegram sobre esta tarefa criada. Use emojis e formatação Markdown:\\n\\nTítulo: {{ $json.title }}\\nPrioridade: {{ $json.aiPriority }}\\nSeveridade: {{ $json.aiSeverityLevel }}/5\\nLink: https://app.clickup.com/t/{{ $('Criar Tarefa ClickUp').item.json.id }}\"}]}]"
+            },
+            {
+              "name": "generationConfig",
+              "value": "={\"maxOutputTokens\": 200}"
             }
           ]
         },
         "options": {}
       },
-      "id": "notify-slack",
-      "name": "Notificar Slack",
+      "id": "f451304d-6741-4608-9376-bca609315c2c",
+      "name": "AI Agente Notificação (Gemini)",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.1,
-      "position": [900, 500]
+      "typeVersion": 4.2,
+      "position": [
+        2420,
+        0
+      ]
     },
     {
       "parameters": {
-        "operation": "update",
-        "resource": "task",
-        "taskId": "={{ $('Criar Tarefa ClickUp').item.json.id }}",
-        "status": "Revisão",
-        "assignees": "={{ [$env.AGENT_REVISAO_ID] }}",
+        "jsCode": "// Processar resposta do AI Agent de Notificação\nconst aiResponse = $input.first().json;\nconst notificationText = aiResponse.candidates[0].content.parts[0].text;\n\nreturn [{\n  json: {\n    notificationText: notificationText\n  }\n}];"
+      },
+      "id": "8a29faab-5acb-41c3-9c6c-bc32342e8f00",
+      "name": "Processar AI Notificação",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "={{ $json.notificationText }}",
         "additionalFields": {
-          "description": "={{ $json.description + '\\n\\n---\\n**Movido para Revisão**\\nAgente responsável: ' + $env.AGENT_REVISAO_ID + '\\nTimestamp: ' + new Date().toISOString() }}"
+          "parse_mode": "Markdown"
         }
       },
-      "id": "update-to-review",
-      "name": "Atualizar para Revisão",
-      "type": "n8n-nodes-base.clickUp",
+      "id": "41fa8589-24ed-4923-b78f-447dc3d31985",
+      "name": "Enviar Notificação Telegram",
+      "type": "n8n-nodes-base.telegram",
       "typeVersion": 1,
-      "position": [1340, 200],
+      "position": [
+        2860,
+        0
+      ],
+      "webhookId": "a0b449b6-2961-42f8-9e48-1d55777f2755",
       "credentials": {
-        "clickUpApi": {
-          "id": "clickup-credentials",
-          "name": "ClickUp API"
+        "telegramApi": {
+          "id": "5kdBuWyLGv5SVoOo",
+          "name": "Telegram account"
         }
       }
-    },
-    {
-      "parameters": {
-        "operation": "update",
-        "resource": "task",
-        "taskId": "={{ $('Criar Tarefa ClickUp').item.json.id }}",
-        "status": "Refinamento",
-        "assignees": "={{ [$env.AGENT_REFINAMENTO_ID] }}",
-        "additionalFields": {
-          "description": "={{ $json.description + '\\n\\n---\\n**Movido para Refinamento**\\nAgente responsável: ' + $env.AGENT_REFINAMENTO_ID + '\\nTimestamp: ' + new Date().toISOString() }}"
-        }
-      },
-      "id": "update-to-refinement",
-      "name": "Atualizar para Refinamento",
-      "type": "n8n-nodes-base.clickUp",
-      "typeVersion": 1,
-      "position": [1560, 200],
-      "credentials": {
-        "clickUpApi": {
-          "id": "clickup-credentials",
-          "name": "ClickUp API"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "operation": "update",
-        "resource": "task",
-        "taskId": "={{ $('Criar Tarefa ClickUp').item.json.id }}",
-        "status": "Criação",
-        "assignees": "={{ [$env.AGENT_CRIACAO_ID] }}",
-        "additionalFields": {
-          "description": "={{ $json.description + '\\n\\n---\\n**Movido para Criação**\\nAgente responsável: ' + $env.AGENT_CRIACAO_ID + '\\nTimestamp: ' + new Date().toISOString() }}"
-        }
-      },
-      "id": "update-to-creation",
-      "name": "Atualizar para Criação",
-      "type": "n8n-nodes-base.clickUp",
-      "typeVersion": 1,
-      "position": [1780, 200],
-      "credentials": {
-        "clickUpApi": {
-          "id": "clickup-credentials",
-          "name": "ClickUp API"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "operation": "update",
-        "resource": "task",
-        "taskId": "={{ $('Criar Tarefa ClickUp').item.json.id }}",
-        "status": "Concluído",
-        "assignees": "={{ [$env.AGENT_NOTIFICACAO_ID] }}",
-        "additionalFields": {
-          "description": "={{ $json.description + '\\n\\n---\\n**Issue Concluída**\\nAgente responsável: ' + $env.AGENT_NOTIFICACAO_ID + '\\nTimestamp: ' + new Date().toISOString() }}"
-        }
-      },
-      "id": "update-to-completed",
-      "name": "Marcar como Concluído",
-      "type": "n8n-nodes-base.clickUp",
-      "typeVersion": 1,
-      "position": [2000, 200],
-      "credentials": {
-        "clickUpApi": {
-          "id": "clickup-credentials",
-          "name": "ClickUp API"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "url": "={{ $env.SLACK_WEBHOOK_URL }}",
-        "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "text",
-              "value": "✅ **Issue de Log Concluída**\\n\\n**Título:** {{ $json.title }}\\n**Link:** https://app.clickup.com/t/{{ $('Criar Tarefa ClickUp').item.json.id }}\\n\\nStatus: Concluído\\nAgente responsável: <@{{ $env.AGENT_NOTIFICACAO_ID }}>"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "notify-completion",
-      "name": "Notificar Conclusão",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.1,
-      "position": [2220, 200]
     }
   ],
+  "pinData": {},
   "connections": {
     "Webhook Bugsnag": {
       "main": [
@@ -284,6 +467,116 @@
       "main": [
         [
           {
+            "node": "AI Agente Recebimento (Gemini)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agente Recebimento (Gemini)": {
+      "main": [
+        [
+          {
+            "node": "Processar AI Recebimento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processar AI Recebimento": {
+      "main": [
+        [
+          {
+            "node": "AI Agente Análise (DeepSeek)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agente Análise (DeepSeek)": {
+      "main": [
+        [
+          {
+            "node": "Processar AI Análise",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processar AI Análise": {
+      "main": [
+        [
+          {
+            "node": "AI Agente Rascunho (Groq)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agente Rascunho (Groq)": {
+      "main": [
+        [
+          {
+            "node": "Processar AI Rascunho",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processar AI Rascunho": {
+      "main": [
+        [
+          {
+            "node": "AI Agente Revisão (Gemini)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agente Revisão (Gemini)": {
+      "main": [
+        [
+          {
+            "node": "Processar AI Revisão",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processar AI Revisão": {
+      "main": [
+        [
+          {
+            "node": "AI Agente Refinamento (DeepSeek)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agente Refinamento (DeepSeek)": {
+      "main": [
+        [
+          {
+            "node": "Processar AI Refinamento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processar AI Refinamento": {
+      "main": [
+        [
+          {
             "node": "Criar Tarefa ClickUp",
             "type": "main",
             "index": 0
@@ -295,85 +588,29 @@
       "main": [
         [
           {
-            "node": "Verificar Severidade",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Notificar Slack",
+            "node": "AI Agente Notificação (Gemini)",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Verificar Severidade": {
+    "AI Agente Notificação (Gemini)": {
       "main": [
         [
           {
-            "node": "Atualizar para Análise",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Atualizar para Rascunho",
+            "node": "Processar AI Notificação",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Atualizar para Análise": {
+    "Processar AI Notificação": {
       "main": [
         [
           {
-            "node": "Atualizar para Revisão",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Atualizar para Revisão": {
-      "main": [
-        [
-          {
-            "node": "Atualizar para Refinamento",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Atualizar para Refinamento": {
-      "main": [
-        [
-          {
-            "node": "Atualizar para Criação",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Atualizar para Criação": {
-      "main": [
-        [
-          {
-            "node": "Marcar como Concluído",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Marcar como Concluído": {
-      "main": [
-        [
-          {
-            "node": "Notificar Conclusão",
+            "node": "Enviar Notificação Telegram",
             "type": "main",
             "index": 0
           }
@@ -381,20 +618,22 @@
       ]
     }
   },
-  "pinData": {},
+  "active": false,
   "settings": {
     "executionOrder": "v1"
   },
-  "staticData": null,
+  "versionId": "717b3e97-59dd-448b-926d-745d2324cdb3",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "86eab3c2bb3913ac526806962509dbb5adf065a28f10b81152329a7cccf616d8"
+  },
+  "id": "3KZvo7wPNiLXPwnm",
   "tags": [
     {
-      "createdAt": "2024-01-01T00:00:00.000Z",
-      "updatedAt": "2024-01-01T00:00:00.000Z",
-      "id": "loganalyze",
-      "name": "LogAnalyze"
+      "createdAt": "2025-06-24T02:29:21.074Z",
+      "updatedAt": "2025-06-24T02:29:21.074Z",
+      "id": "N1paBfckoiZSEnJ6",
+      "name": "LogAnalyze-AI"
     }
-  ],
-  "triggerCount": 1,
-  "updatedAt": "2024-01-01T00:00:00.000Z",
-  "versionId": "1"
+  ]
 } 
